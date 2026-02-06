@@ -38,7 +38,7 @@ curl -fsSL "$AGENT_URL" -o "$TMP_AGENT"
 echo "[4/9] Instalando agent en $AGENT_BIN ..."
 rm -f "$AGENT_BIN"
 mv "$TMP_AGENT" "$AGENT_BIN"
-chmod 0750 "$AGENT_BIN"
+chmod 0755 "$AGENT_BIN"
 chown root:root "$AGENT_BIN"
 
 # -------------------------------------------------------------------
@@ -136,8 +136,8 @@ echo "[8/9] Instalando cron..."
 # 9) Resumen
 # -------------------------------------------------------------------
 echo "[9/9] Instalación completada"
-echo "  - Agent: $AGENT_BIN"
-echo "  - Env:   $ENV_FILE"
+echo "  - Agent: $AGENT_BIN (755)"
+echo "  - Env:   $ENV_FILE (600)"
 echo "  - Cron:  ${CRON_EXPR} ${CRON_CMD}"
 echo
 echo "Puedes probar manualmente con:"
