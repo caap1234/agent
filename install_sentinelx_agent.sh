@@ -47,7 +47,33 @@ pkill -f sentinelx-agent.sh 2>/dev/null || true
 # -------------------------------------------------------------------
 echo "[3/10] Descargando agent nuevo..."
 TMP_AGENT="$(mktemp)"
-curl -fsSL "$AGENT_URL" -o "$TMP_AGENT"
+
+download_ok=0
+
+# 1) curl forzado a IPv4 (este server lo requiere)
+if curl -4 -fsSL --connect-timeout 10 --max-time 120 "$AGENT_URL" -o "$TMP_AGENT"; then
+  download_ok=1
+fi
+
+# 2) fallback curl normal
+if [[ "$download_ok" -eq 0 ]]; then
+  if curl -fsSL --connect-timeout 10 --max-time 120 "$AGENT_URL" -o "$TMP_AGENT"; then
+    download_ok=1
+  fi
+fi
+
+# 3) fallback wget (por si curl no existe)
+if [[ "$download_ok" -eq 0 ]]; then
+  if command -v wget >/dev/null 2>&1; then
+    wget -4 -O "$TMP_AGENT" "$AGENT_URL" || true
+    [[ -s "$TMP_AGENT" ]] && download_ok=1
+  fi
+fi
+
+if [[ "$download_ok" -eq 0 ]]; then
+  echo "ERROR: no se pudo descargar el agent desde: $AGENT_URL"
+  exit 1
+fi
 
 # -------------------------------------------------------------------
 # 4) Reemplazar agent existente
