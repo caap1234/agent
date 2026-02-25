@@ -43,6 +43,8 @@ FIRST_RUN_SCAN_MB="${SENTINELX_FIRST_RUN_SCAN_MB:-256}"
 
 # SAR (opcional)
 SAR_BACKFILL_DAYS="${SENTINELX_SAR_BACKFILL_DAYS:-3}"  # 0 = deshabilita
+# NUEVO: primer run de SAR (sin marker) manda SOLO el día actual (default=1)
+SAR_FIRST_RUN_ONLY_TODAY="${SENTINELX_SAR_FIRST_RUN_ONLY_TODAY:-1}"
 
 STATE_DIR="${STATE_DIR:-/var/lib/sentinelx-agent}"
 SPOOL_DIR="${SPOOL_DIR:-/var/spool/sentinelx-agent}"
@@ -600,25 +602,39 @@ sar_send_logic() {
 
   if [[ "${SAR_BACKFILL_DAYS}" =~ ^[0-9]+$ ]] && (( SAR_BACKFILL_DAYS > 0 )); then
     local marker="${STATE_DIR}/sar_backfill_done_${SAR_BACKFILL_DAYS}"
+
+    local today_dd
+    today_dd="$(date -u +%d)"
+    local today_file="/var/log/sa/sa${today_dd}"
+
     if [[ ! -f "$marker" ]]; then
-      local i
-      for (( i=0; i<=SAR_BACKFILL_DAYS; i++ )); do
-        time_exceeded && break
-        local dd
-        dd="$(date -u -d "-${i} day" +%d 2>/dev/null || true)"
-        [[ -n "$dd" ]] || continue
-        local f="/var/log/sa/sa${dd}"
-        enqueue_sar_for_file "$f" "-q"
-        enqueue_sar_for_file "$f" "-r"
-        enqueue_sar_for_file "$f" "-d"
-      done
-      touch "$marker"
+      # Primer run SAR:
+      # - por default SOLO manda el día actual
+      if [[ "${SAR_FIRST_RUN_ONLY_TODAY}" == "1" ]]; then
+        enqueue_sar_for_file "$today_file" "-q"
+        enqueue_sar_for_file "$today_file" "-r"
+        enqueue_sar_for_file "$today_file" "-d"
+        touch "$marker"
+      else
+        # Comportamiento anterior (backfill completo) si se deshabilita el flag
+        local i
+        for (( i=0; i<=SAR_BACKFILL_DAYS; i++ )); do
+          time_exceeded && break
+          local dd
+          dd="$(date -u -d "-${i} day" +%d 2>/dev/null || true)"
+          [[ -n "$dd" ]] || continue
+          local f="/var/log/sa/sa${dd}"
+          enqueue_sar_for_file "$f" "-q"
+          enqueue_sar_for_file "$f" "-r"
+          enqueue_sar_for_file "$f" "-d"
+        done
+        touch "$marker"
+      fi
     else
-      local today_dd
-      today_dd="$(date -u +%d)"
-      enqueue_sar_for_file "/var/log/sa/sa${today_dd}" "-q"
-      enqueue_sar_for_file "/var/log/sa/sa${today_dd}" "-r"
-      enqueue_sar_for_file "/var/log/sa/sa${today_dd}" "-d"
+      # Corridas siguientes: manda el SAR del día
+      enqueue_sar_for_file "$today_file" "-q"
+      enqueue_sar_for_file "$today_file" "-r"
+      enqueue_sar_for_file "$today_file" "-d"
     fi
   fi
 }
