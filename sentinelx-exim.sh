@@ -102,6 +102,9 @@ curl_upload_file() {
   local filepath="$2"
   local filename="$3"
 
+  local resp_file
+  resp_file="$(mktemp /tmp/sentinelx-upload-response.XXXXXX)"
+
   local curl_args=(
     -sS
     --connect-timeout "$CONNECT_TIMEOUT"
@@ -109,7 +112,7 @@ curl_upload_file() {
     -H "X-API-Key: ${SENTINELX_API_KEY}"
     -F "tag=${tag}"
     -F "file=@${filepath};filename=${filename}"
-    -o /dev/null
+    -o "$resp_file"
     -w "%{http_code}"
   )
 
@@ -121,10 +124,15 @@ curl_upload_file() {
   http_code="$(curl "${curl_args[@]}" "$SENTINELX_INGEST_URL" || true)"
 
   if [[ "$http_code" == "200" || "$http_code" == "201" || "$http_code" == "202" ]]; then
+    rm -f "$resp_file"
     return 0
   fi
 
   log "ERROR upload tag=${tag} file=${filename} http_code=${http_code}"
+  if [[ -s "$resp_file" ]]; then
+    log "ERROR response_body=$(tr '\n' ' ' < "$resp_file" | sed 's/[[:space:]]\+/ /g')"
+  fi
+  rm -f "$resp_file"
   return 1
 }
 
